@@ -1,86 +1,70 @@
 ----------------------------------- Function 1
-CREATE PROCEDURE p2p_insert(checkedPeer_ VARCHAR, checkingPeer_ VARCHAR, taskname_ VARCHAR, state_ status, time_ time)
+CREATE OR REPLACE PROCEDURE p2p_insert(checkedPeer_ VARCHAR, checkingPeer_ VARCHAR, taskname_ VARCHAR, state_ status, time_ time)
 AS $$
 DECLARE
-    numP2PCheckForPeer bigint := (   SELECT count(P2P.id)
-                                FROM P2P JOIN checks ON P2P.checkid=checks.id
-                                WHERE   checkedPeer_ = peer AND
-                                        taskname_ = task AND
-                                        checkstatus = 'Start') % 3;
-    findStartForP2PCheck bigint;  /*поиск начала P2P проверки*/
-    idOfCheck bigint;     /*Id последней проверки для пары checkedPeer and task name*/
-    numOfChecks bigint;
-    lastIdP2PCheck bigint := (SELECT MAX(id) FROM p2p);
-    numIdP2PCheck bigint;
-BEGIN
-    if(lastIdP2PCheck is NULL)
-    THEN
-        lastIdP2PCheck=0;
-    END IF;
-    IF (state_ = 'Start')
-    THEN
-        IF (numP2PCheckForPeer = 0)
-        THEN
-            IF ((SELECT MAX(checks.id) FROM checks) IS NULL)
-            THEN
-                numOfChecks:= 0;
-            ELSE
-                numOfChecks := (SELECT MAX(checks.id) FROM checks);
-            END IF;
-            INSERT INTO checks VALUES(numOfChecks+1,checkedPeer_,taskname_, NOW());
-        END IF;
-        idOfCheck := (    SELECT id
-                          FROM checks
-                          WHERE checkedPeer_ = peer AND
-                                taskname_ = task
-                          ORDER BY date_of_check  DESC, id DESC
-                          LIMIT 1);
-        numIdP2PCheck :=  ( SELECT count(checkid)
-                            FROM P2P JOIN checks ON P2P.checkid=checks.id
-                            WHERE   checkingpeer=checkingPeer_ AND
-                                    checkedPeer_ = peer AND
+    checkStartedP2P bigint := (SELECT COUNT(p2p.id)
+                              FROM P2P JOIN checks ON P2P.checkid=checks.id
+                              WHERE checkedPeer_=peer AND
+                                    checkingpeer=checkingPeer_ AND
                                     taskname_ = task AND
-                                    checkstatus = 'Start' AND
-                                    checkid = idOfCheck);
-        IF(numIdP2PCheck != 0)
+                                    checkstatus='Start'
+                              GROUP BY date_of_check,time_p2p
+                              ORDER BY date_of_check DESC, time_p2p DESC
+                              LIMIT 1);
+    CheckIdMax bigint := (SELECT count(id) FROM checks);
+    P2PIdLast bigint := (SELECT count(id) FROM p2p);
+    NumStartedP2P bigint;
+    NumEndedP2P bigint;
+    IDCheckStart bigint;
+BEGIN
+    NumStartedP2P = (   SELECT COUNT(p2p.id)
+                        FROM P2P JOIN checks ON P2P.checkid=checks.id
+                        WHERE checkedPeer_=peer AND
+                            checkingpeer=checkingPeer_ AND
+                            taskname_ = task AND
+                            checkstatus = 'Start');
+    NumEndedP2P = (     SELECT COUNT(p2p.id)
+                        FROM P2P JOIN checks ON P2P.checkid=checks.id
+                        WHERE checkedPeer_=peer AND
+                            checkingPeer_=checkingpeer AND
+                            taskname_ = task AND
+                            checkstatus != 'Start');
+    IF(NumEndedP2P IS NULL) THEN NumEndedP2P=0; END IF;
+    IF(NumStartedP2P IS NULL) THEN NumStartedP2P=0; END IF;
+    IF (P2PIdLast IS NULL)
+    THEN
+        P2PIdLast=0;
+    END IF;
+    IF (state_='Start')
+    THEN
+        IF(NumStartedP2P != NumEndedP2P)
         THEN
-            RAISE EXCEPTION 'You have already been checked by this peer!';
+            RAISE EXCEPTION 'Prevent check not completed!';
         END IF;
-        INSERT INTO P2P VALUES(lastIdP2PCheck+1,idOfCheck,checkingPeer_,state_,time_);
+        INSERT INTO checks VALUES(CheckIdMax+1, checkedPeer_, taskname_, NOW());
+        INSERT INTO P2P VALUES(P2PIdLast+1, CheckIdMax+1, checkingPeer_, state_, time_);
     ELSE
-        IF(numP2PCheckForPeer = 0)
+        IDCheckStart = (SELECT checks.id
+                        FROM P2P JOIN checks on p2p.checkid = checks.id
+                        WHERE   checkedPeer_ = peer AND
+                                checkingPeer_ = checkingpeer AND
+                                taskname_ = task AND
+                                checkstatus = 'Start'
+                        ORDER BY checks.id DESC
+                        LIMIT 1);
+        IF((NumStartedP2P-NumEndedP2P) <= 0)
         THEN
             RAISE EXCEPTION 'This check has not yet begun.';
         END IF;
-        findStartForP2PCheck :=  (  SELECT checkid
-                                    FROM P2P JOIN checks ON P2P.checkid=checks.id
-                                    WHERE   checkingpeer=checkingPeer_ AND
-                                            checkedPeer_ = peer AND
-                                            taskname_ = task AND
-                                            checkstatus = 'Start'
-                                    ORDER BY date_of_check DESC, P2P.checkid DESC
-                                    LIMIT 1);
-        IF(findStartForP2PCheck IS NULL)    /* Если эта проверка началась */
-        THEN
-            RAISE EXCEPTION 'This check has not yet begun.';
-        END IF;
-        INSERT INTO P2P VALUES(lastIdP2PCheck+1,findStartForP2PCheck,checkingPeer_,state_,time_);
+        INSERT INTO P2P VALUES(P2PIdLast+1,IDCheckStart,checkingPeer_,state_,time_);
     END IF;
 END
 $$ LANGUAGE plpgsql;
 -- For testing first function in part 2
 /*
-CALL p2p_insert('hlowell', 'adough', 'D1_Linux', 'Start', '14:32');
-CALL p2p_insert('hlowell', 'adough', 'D1_Linux', 'Success', '14:32');
-CALL p2p_insert('hlowell', 'jcraster', 'D1_Linux', 'Start', '14:32');
-CALL p2p_insert('hlowell', 'jcraster', 'D1_Linux', 'Success', '14:32');
-CALL p2p_insert('hlowell', 'phawkgir', 'D1_Linux', 'Start', '14:32');
-CALL p2p_insert('hlowell', 'phawkgir', 'D1_Linux', 'Success', '14:32');
-
-DELETE FROM P2P
-WHERE id>=0;
-DELETE FROM checks
-WHERE id>=0;*/
+CALL p2p_insert('hlowell', 'jcraster', 'C2_SimpleBashUtils', 'Start', '14:32');
+CALL p2p_insert('hlowell', 'jcraster', 'C2_SimpleBashUtils', 'Success', '14:32');
+*/
 ----------------------------------- Function 2
 CREATE OR REPLACE PROCEDURE insert_in_verter_table(checkedPeer_ VARCHAR, task_ VARCHAR, state_ status, time_ TIME)
 AS $$
@@ -89,20 +73,16 @@ DECLARE
                              FROM checks
                              WHERE  task_ = checks.task AND
                                     checkedPeer_= peer
-                             ORDER BY date_of_check DESC
+                             ORDER BY id DESC
                              LIMIT 1);
     lastVerterId BIGINT := (SELECT MAX(id)+1 FROM verter);
 BEGIN
-    IF(lastVerterId IS NULL)
-    THEN
-        lastVerterId := 0;
-    END IF;
+    IF(lastVerterId IS NULL) THEN lastVerterId := 0; END IF;
     if(LastIdOfCheck IS NULL)
     THEN
         RAISE exception 'This check is not be found!';
-    ELSE
-        INSERT INTO verter VALUES(lastVerterId,LastIdOfCheck,state_,time_);
-    end if;
+    END IF;
+    INSERT INTO verter VALUES(lastVerterId,LastIdOfCheck,state_,time_);
 END;
 $$LANGUAGE plpgsql;
 -- For testing second function in part 2

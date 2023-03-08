@@ -21,5 +21,4 @@ $$
 LANGUAGE sql;
 
 SELECT *
-FROM fnc_peer_dont_leave_the_campus('2022-02-02');
-
+FROM fnc_peer_dont_leave_the_campus('2022-11-30');

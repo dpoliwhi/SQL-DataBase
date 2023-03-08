@@ -19,14 +19,14 @@ CREATE TABLE Departments
   Department VARCHAR NOT NULL
 );
 
-CREATE FUNCTION fnc_average_salary() RETURNS NUMERIC AS
+CREATE OR REPLACE FUNCTION fnc_average_salary() RETURNS NUMERIC AS
 $$
     SELECT AVG(Salary)
     FROM TableNameSalary;
 $$
 LANGUAGE sql;
 
-CREATE FUNCTION fnc_high_salary(x NUMERIC) RETURNS TABLE(EmployeeId BIGINT) AS
+CREATE OR REPLACE FUNCTION fnc_high_salary(x NUMERIC) RETURNS TABLE(EmployeeId BIGINT) AS
 $$
     SELECT EmployeeId
     FROM TableNameSalary
@@ -34,7 +34,7 @@ $$
 $$
 LANGUAGE sql;
 
-CREATE FUNCTION fnc_same_name(n VARCHAR) RETURNS TABLE(SecondName VARCHAR) AS
+CREATE OR REPLACE FUNCTION fnc_same_name(n VARCHAR) RETURNS TABLE(SecondName VARCHAR) AS
 $$
     SELECT SecondName
     FROM TableNameEmployee
@@ -59,19 +59,26 @@ $$;
 
 CALL delete_tables();
 
-CREATE OR REPLACE PROCEDURE list_of_parameters (INOUT number_of_functions BIGINT)
-LANGUAGE sql
+CREATE OR REPLACE PROCEDURE list_of_parameters (result_data INOUT REFCURSOR)
+LANGUAGE plpgsql
 AS $$
-    SELECT count(*) FROM
-    (SELECT routines.routine_name, string_agg(parameters.parameter_name, ', ') AS temp_table
+    BEGIN OPEN result_data FOR
+        (WITH temp AS
+            (SELECT routines.routine_name, string_agg(parameters.parameter_name, ', ') AS temp_table
     FROM information_schema.routines
     JOIN information_schema.parameters ON routines.specific_name = parameters.specific_name
     WHERE routines.specific_schema = 'public'
     AND routines.routine_type = 'FUNCTION'
-    GROUP BY routines.routine_name) AS temp_table;
+    GROUP BY routines.routine_name)
+    SELECT * FROM temp);
+    END;
 $$;
 
-CALL list_of_parameters(NULL);
+BEGIN;
+CALL list_of_parameters('data');
+FETCH ALL IN "data";
+COMMIT;
+END;
 
 CREATE TABLE AuditEmployee
 (
@@ -86,11 +93,14 @@ CREATE TABLE AuditEmployee
 CREATE OR REPLACE FUNCTION fnc_process_emp_audit() RETURNS TRIGGER AS $$
     BEGIN
         IF (TG_OP = 'DELETE') THEN
-            INSERT INTO AuditEmployee SELECT now(), 'D', OLD.*;
+            INSERT INTO AuditEmployee (Created, TypeEvent, Row_id, FirstName, SecondName, Birthday)
+            VALUES (now(), 'D', OLD.Row_id, OLD.FirstName, OLD.SecondName, OLD.Birthday);
         ELSIF (TG_OP = 'UPDATE') THEN
-            INSERT INTO AuditEmployee SELECT now(), 'U', NEW.*;
+            INSERT INTO AuditEmployee (Created, TypeEvent, Row_id, FirstName, SecondName, Birthday)
+            VALUES (now(), 'U', OLD.Row_id, OLD.FirstName, OLD.SecondName, OLD.Birthday);
         ELSIF (TG_OP = 'INSERT') THEN
-            INSERT INTO AuditEmployee SELECT now(), 'I', NEW.*;
+            INSERT INTO AuditEmployee (Created, TypeEvent, Row_id, FirstName, SecondName, Birthday)
+            VALUES (now(), 'I', NEW.Row_id, NEW.FirstName, NEW.SecondName, NEW.Birthday);
         END IF;
         RETURN NULL;
     END;
@@ -119,15 +129,20 @@ $$;
 
 CALL delete_triggers(NULL);
 
-CREATE OR REPLACE PROCEDURE list_of_func(string text)
-LANGUAGE sql
+CREATE OR REPLACE PROCEDURE list_of_func(x varchar, result_data INOUT REFCURSOR)
+LANGUAGE plpgsql
 AS $$
-    SELECT routine_name, routine_type
+    BEGIN OPEN result_data FOR
+    (SELECT routine_name, routine_type
     FROM information_schema.routines
     WHERE routines.specific_schema = 'public'
     AND (routines.routine_type = 'PROCEDURE' OR routines.routine_type = 'FUNCTION')
-    AND routines.routine_definition ~ string;
+    AND routines.routine_definition ~ x);
+    END;
 $$;
 
-CALL list_of_func('SELECT AVG');
-
+BEGIN;
+CALL list_of_func('SELECT AVG','data');
+FETCH ALL IN "data";
+COMMIT;
+END;

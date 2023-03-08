@@ -5,3 +5,5 @@ C5_s21_decimal;C2_SimpleBashUtils;350
 C6_s21_matrix;C5_s21_decimal;200
 C7_SmartCalc_v1;C6_s21_matrix;500
 C8_3DViewer_v1;C7_SmartCalc_v1;750
+CPP1_s21_matrix;C8_3DViewer_v1;300
+A1_maze;CPP1_s21_matrix;300

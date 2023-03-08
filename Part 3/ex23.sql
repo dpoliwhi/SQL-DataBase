@@ -1,11 +1,17 @@
-CREATE OR REPLACE FUNCTION fnc_last_peer_to_arrive(d date) RETURNS TABLE(Peer varchar) AS
-$$
-SELECT peer
-FROM timetracking
-WHERE date = d AND state = 1
-ORDER BY time DESC
-LIMIT 1;
-$$ LANGUAGE sql;
+CREATE OR REPLACE PROCEDURE pcd_last_peer_to_arrive_23(result_data inout refcursor)
+AS $$
+BEGIN
+    OPEN result_data FOR(
+        SELECT peer
+        FROM timetracking
+        WHERE date = now()::timestamp::date AND state = 1
+        ORDER BY time DESC
+        LIMIT 1);
+END;
+$$ LANGUAGE plpgsql;
 
-SELECT *
-FROM fnc_last_peer_to_arrive('2022-02-03');
+BEGIN;
+CALL pcd_last_peer_to_arrive_23('data');
+FETCH ALL IN "data";
+COMMIT;
+END;

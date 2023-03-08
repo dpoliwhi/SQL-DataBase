@@ -1,18 +1,23 @@
-CREATE OR REPLACE FUNCTION fnc_get_peers_leave_campus(lastDays int, times bigint) RETURNS TABLE(peer varchar)
-LANGUAGE SQL AS
+CREATE OR REPLACE PROCEDURE get_peers_leave_campus(result_data INOUT REFCURSOR, lastDays int, times bigint) AS
 $$
-WITH tc AS
-    (SELECT peer, count(peer) AS LeaveCampusTimes
-    FROM
-        (SELECT peer, time, date, state
-        FROM timetracking
-        WHERE date >= (SELECT now()::DATE - lastDays) AND state = 2
-        ORDER BY peer) AS tt
-    GROUP BY peer)
-SELECT peer
-FROM tc
-WHERE LeaveCampusTimes > times
-$$;
+BEGIN
+    OPEN result_data FOR
+        (WITH tc AS
+                  (SELECT peer, count(peer) AS LeaveCampusTimes
+                   FROM (SELECT peer, time, date, state
+                         FROM timetracking
+                         WHERE date >= (SELECT now()::DATE - lastDays)
+                           AND state = 2
+                         ORDER BY peer) AS tt
+                   GROUP BY peer)
+         SELECT peer
+         FROM tc
+         WHERE LeaveCampusTimes > times);
+END;
+$$ LANGUAGE plpgsql;
 
-SELECT *
-FROM fnc_get_peers_leave_campus(8, 2);
+BEGIN;
+CALL get_peers_leave_campus('data', 100, 1);
+FETCH ALL IN "data";
+COMMIT;
+END;

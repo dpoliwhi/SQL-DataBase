@@ -15,6 +15,7 @@ JOIN tasks AS t3 ON t1.task = t3.title)
     SELECT Peer, Task, XP
     FROM succes_checks
     WHERE status = 'Success'
+    ORDER BY 1
 $$
 LANGUAGE sql;
 

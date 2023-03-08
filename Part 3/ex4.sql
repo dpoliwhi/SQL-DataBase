@@ -1,7 +1,7 @@
-CREATE OR REPLACE PROCEDURE get_checks_percents()
-LANGUAGE SQL AS
+CREATE OR REPLACE PROCEDURE get_checks_percents(result_data INOUT REFCURSOR) AS
 $$
-WITH st AS (SELECT count(state)::numeric AS success_count
+    BEGIN OPEN result_data FOR
+(WITH st AS (SELECT count(state)::numeric AS success_count
             FROM verter
             WHERE state = 'Success'),
      ft AS (SELECT count(state)::numeric AS failure_count
@@ -10,7 +10,13 @@ WITH st AS (SELECT count(state)::numeric AS success_count
 SELECT round(success_count / (st.success_count + ft.failure_count) * 100.0, 2) AS SuccessfulChecks,
        round(failure_count / (st.success_count + ft.failure_count) * 100.0, 2) AS UnsuccessfulChecks
 FROM st,
-     ft
-$$;
+     ft);
+END;
+$$ LANGUAGE plpgsql;
 
-CALL get_checks_percents();
+BEGIN;
+CALL get_checks_percents('data');
+FETCH ALL IN "data";
+COMMIT;
+END;
+
