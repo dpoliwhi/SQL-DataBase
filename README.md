@@ -1,3 +1,6 @@
+<p align="center">
+<img src="materials/main_logo.JPG" alt="drawing"/>
+</p>
 
 # SQL-DataBase
 Implementation of database with data about School 21 and writing procedures and functions to retrieve information, as well as procedures and triggers to change it.
@@ -28,13 +31,13 @@ There are at least 10 records in each table.
 ## Part 2. Changing data
 
 ##### 1) Written a procedure for adding P2P check
-Parameters: nickname of the person being checked, checker's nickname, task name, [P2P check status]( #check-status), time. \
+Parameters: nickname of the person being checked, checker's nickname, task name, P2P check status, time. \
 If the status is "start", add a record in the Checks table (use today's date). \
 Add a record in the P2P table. \
 If the status is "start", specify the record just added as a check, otherwise specify the check with the latest (by time) unfinished P2P step.
 
 ##### 2) Written a procedure for adding checking by Verter
-Parameters: nickname of the person being checked, task name, [Verter check status](#check-status), time. \
+Parameters: nickname of the person being checked, task name, Verter check status, time. \
 Add a record to the Verter table (as a check specify the check of the corresponding task with the latest (by time) successful P2P step)
 
 ##### 3) Written a trigger: after adding a record with the "start" status to the P2P table, change the corresponding record in the TransferredPoints table
